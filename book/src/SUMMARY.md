@@ -11,3 +11,4 @@
 * [Camera](08_camera.md)
 * [Depth Buffer](09_depth_buffer.md)
 * [Instanced Drawing](10_instanced_drawing.md)
+* [Cleanup Lesson](11_cleanup_lesson.md)

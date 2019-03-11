@@ -1,1 +1,1 @@
-cargo run --example depth_buffer --features="vulkan"
+cargo run --example cleanup_lesson --features="vulkan" --release

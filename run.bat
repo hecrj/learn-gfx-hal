@@ -1,1 +1,1 @@
-cargo run --example depth_buffer --features="dx12"
+cargo run --example cleanup_lesson --features="dx12" --release

@@ -56,7 +56,7 @@ use winit::{
 
 pub const MAX_CUBES: usize = 5000;
 
-pub const WINDOW_NAME: &str = "Instanced Drawing";
+pub const WINDOW_NAME: &str = "Cleanup Lesson";
 
 pub const VERTEX_SOURCE: &str = "#version 450
 layout (push_constant) uniform PushConsts {
@@ -554,6 +554,48 @@ impl<B: Backend, D: Device<B>> DepthImage<B, D> {
   }
 }
 
+/// Stores a pair of ring buffers of semaphores.
+pub struct RingBufferSemaphoreDuo<B: Backend, D: Device<B>> {
+  a_vec: Vec<ManuallyDrop<B::Semaphore>>,
+  b_vec: Vec<ManuallyDrop<B::Semaphore>>,
+  ring_index: usize,
+  _phantom: PhantomData<D>,
+}
+impl<B: Backend, D: Device<B>> RingBufferSemaphoreDuo<B, D> {
+  pub fn new(device: &D, count: usize) -> Result<Self, gfx_hal::device::OutOfMemory> {
+    let mut a_vec = vec![];
+    let mut b_vec = vec![];
+    let ring_index = 0;
+    for _ in 0..count {
+      a_vec.push(ManuallyDrop::new(device.create_semaphore()?));
+      b_vec.push(ManuallyDrop::new(device.create_semaphore()?));
+    }
+    Ok(Self {
+      a_vec,
+      b_vec,
+      ring_index,
+      _phantom: PhantomData,
+    })
+  }
+
+  pub fn grab_next(&mut self) -> (&B::Semaphore, &B::Semaphore) {
+    let out_a = self.a_vec[self.ring_index].deref();
+    let out_b = self.b_vec[self.ring_index].deref();
+    self.ring_index = (self.ring_index + 1) % self.a_vec.len();
+    (out_a, out_b)
+  }
+
+  pub unsafe fn manually_drop(&self, device: &D) {
+    use core::ptr::read;
+    for semaphore_ref in self.a_vec.iter() {
+      device.destroy_semaphore(ManuallyDrop::into_inner(read(semaphore_ref)));
+    }
+    for semaphore_ref in self.b_vec.iter() {
+      device.destroy_semaphore(ManuallyDrop::into_inner(read(semaphore_ref)));
+    }
+  }
+}
+
 pub struct HalState {
   cube_vertices: BufferBundle<back::Backend, back::Device>,
   cube_instances: Vec<BufferBundle<back::Backend, back::Device>>,
@@ -567,9 +609,8 @@ pub struct HalState {
   graphics_pipeline: ManuallyDrop<<back::Backend as Backend>::GraphicsPipeline>,
   current_frame: usize,
   frames_in_flight: usize,
+  semaphore_buffers: RingBufferSemaphoreDuo<back::Backend, back::Device>,
   in_flight_fences: Vec<<back::Backend as Backend>::Fence>,
-  render_finished_semaphores: Vec<<back::Backend as Backend>::Semaphore>,
-  image_available_semaphores: Vec<<back::Backend as Backend>::Semaphore>,
   command_buffers: Vec<CommandBuffer<back::Backend, Graphics, MultiShot, Primary>>,
   command_pool: ManuallyDrop<CommandPool<back::Backend, Graphics>>,
   framebuffers: Vec<<back::Backend as Backend>::Framebuffer>,
